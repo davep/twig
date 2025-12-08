@@ -19,7 +19,7 @@ The following is a set of guidelines for contributing to Twig. These are mostly 
 
 ### Core Pillars
 
-1.  **Universal Support**: Open *any* structured file (JSON, YAML, TOML, XML, etc.).
+1.  **JSON Support**: Optimized for parsing and exploring large JSON files.
 2.  **Miller Column Navigation**: Traverse deep hierarchies effortlessly.
 3.  **Safe Editing**: Modify values and keys with confidence.
 4.  **Powerful Search**: Find exactly what you need.
@@ -29,10 +29,11 @@ The following is a set of guidelines for contributing to Twig. These are mostly 
 This section (formerly the Technical Design Document) outlines the core architecture to help you navigate the codebase.
 
 ### 1. Core Capabilities
-
-*   **Universal File Support:** Native ingestion of any structured format into a unified `TwigModel`.
-*   **Miller Column Navigation:** The primary interface for deep traversal.
-*   **Smart Content Awareness:** Inferred semantic types (e.g., ISO 8601 -> Relative time, Hex -> Color preview).
+ 
+ *   **JSON Support:** Fast ingestion of JSON files into a unified `TwigModel`.
+ *   **Miller Column Navigation:** The primary interface for deep traversal.
+ *   **Async Interaction Engine:** Non-blocking navigation and search using `asyncio` and `Textual` workers.
+ *   **Smart Content Awareness:** Inferred semantic types (e.g., ISO 8601 -> Relative time, Hex -> Color preview).
 
 ### 2. User Interface Design
 
@@ -44,7 +45,27 @@ The UI is built on **Textual (Python)**.
 *   **Main Body:** Split view with Navigation Columns (Left) and Inspector Pane (Right).
 *   **Footer:** Contextual key hints and Command Bar.
 
-## Setting Up the Development Environment
+### 3. Project Structure
+
+```text
+src/twg
+├── core/           # Data models (TwigModel, Node)
+├── adapters/       # File ingestion logic (JSON, etc.)
+└── ui/
+    ├── app.py      # Main application entry point
+    ├── styles.tcss # Textual CSS definitions
+    └── widgets/    # Reusable UI components
+        ├── navigator.py   # Miller Column logic
+        ├── inspector.py   # Details pane
+        ├── search.py      # Search modal
+        └── ...
+```
+
+### 4. Useful Documentation
+
+*   [Textual Documentation](https://textual.textualize.io/) - The framework used for the TUI.
+*   [Rich Documentation](https://rich.readthedocs.io/en/stable/) - Used for text formatting.
+*   [jq Manual](https://jqlang.github.io/jq/manual/) - The syntax used for paths.
 
 ### Prerequisites
 
@@ -99,10 +120,3 @@ The UI is built on **Textual (Python)**.
 
 *   **Language:** Python 3.10+ (Utilizing strict type hinting).
 *   **Linter:** `ruff` for linting and formatting.
-
-## Roadmap
-
-- [x] **Phase 1**: Core Navigation & Visualization (Miller Columns, Inspector, Themes)
-- [ ] **Phase 2**: Search & Filtering (Fuzzy search, JMESPath/jq queries)
-- [ ] **Phase 3**: Editing (Modify values, rename keys, save changes)
-- [ ] **Phase 4**: Multiple File Support & Diffing

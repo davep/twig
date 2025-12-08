@@ -1,16 +1,20 @@
 from textual.app import ComposeResult
-from textual.containers import Vertical, Container
+from textual.containers import Vertical, Container, Horizontal
 from textual.widgets import Static, Label
 from textual.reactive import reactive
+from rich.text import Text
+from rich.table import Table
+from rich.panel import Panel
+from rich.syntax import Syntax
+from datetime import datetime
+import json
+
 from twg.core.model import Node, DataType, TwigModel
 
 class Inspector(Container):
     """
-    Displays detailed information about the selected node.
-    
-    Shows the key, type, value, and any smart-detected information (e.g., ISO dates).
+    Displays detailed information about the selected node in a rich format.
     """
-    # CSS moved to styles.tcss
     
     selected_node: reactive[Node | None] = reactive(None)
 
@@ -20,45 +24,87 @@ class Inspector(Container):
 
     def compose(self) -> ComposeResult:
         yield Label("Inspector", id="inspector-title")
-        yield Static("Select a node to view details", id="inspector-content")
+        yield Vertical(
+            Label("", id="insp-header"),
+            Label("", id="insp-path"),
+            Container(id="insp-details-grid"),
+            Static(id="insp-content"),
+            id="inspector-scroll"
+        )
 
     def watch_selected_node(self, node: Node | None) -> None:
-        content_widget = self.query_one("#inspector-content", Static)
+        header = self.query_one("#insp-header", Label)
+        path_view = self.query_one("#insp-path", Label)
+        details_grid = self.query_one("#insp-details-grid", Container)
+        content = self.query_one("#insp-content", Static)
+        
+        # Clear details grid
+        details_grid.remove_children()
         
         if node is None:
-            content_widget.update("Select a node to view details")
+            header.update("No Selection")
+            header.add_class("dim")
+            path_view.update("")
+            content.update("")
             return
         
-        # 2. Smart Type Detection & Formatting
-        key_display = node.key if node.key else "(root)"
-        type_display = node.type.value
-        value_display = str(node.value)
-        
-        extra_info = ""
+        header.remove_class("dim")
 
-        if node.is_container:
-            value_display = f"<{len(node.children)} items>"
+        # 1. Header
+        key_display = node.key if node.key else "root"
+        header.update(key_display)
+
+        # 2. Human Readable Path
+        chain = []
+        curr = node
+        while curr:
+            label = curr.key if curr.key else "root"
+            chain.append(label)
+            if curr.parent:
+                curr = self.model.get_node(curr.parent)
+            else:
+                curr = None
+        
+        human_path = " › ".join(reversed(chain))
+        path_view.update(human_path)
+
+        # 3. Details Grid (Native Widgets)
+        type_str = node.type.value.capitalize()
+        size_str = "-"
+        
+        if node.type == DataType.ARRAY:
+             if isinstance(node.raw_value, list):
+                 size_str = f"{len(node.raw_value)} items"
+        elif node.type == DataType.OBJECT:
+             if isinstance(node.raw_value, dict):
+                 size_str = f"{len(node.raw_value)} keys"
         elif node.type == DataType.STRING:
-            # Check for Date
+             size_str = f"{len(str(node.value))} chars"
+
+        # Helper to add row
+        def add_detail(label: str, value: str):
+            details_grid.mount(Label(label, classes="insp-label"))
+            details_grid.mount(Label(value, classes="insp-value"))
+
+        add_detail("Type", type_str)
+        add_detail("Size", size_str)
+        
+        # Smart Insight: Date
+        if node.type == DataType.STRING:
             try:
-                # Basic ISO check (can be improved)
-                from datetime import datetime
                 dt = datetime.fromisoformat(node.value.replace('Z', '+00:00'))
-                type_display = "Date (ISO8601)"
-                extra_info = f"\n[b]Parsed:[/b] {dt.strftime('%Y-%m-%d %H:%M:%S')}"
+                add_detail("Parsed", dt.strftime('%Y-%m-%d %H:%M'))
             except ValueError:
                 pass
-            
-            # Check for URL
-            if node.value.startswith("http://") or node.value.startswith("https://"):
-                type_display = "URL"
 
-        content = f"""
-[b]Key:[/b] {key_display}
-[b]Type:[/b] {type_display}
-
-[b]Value:[/b]
-{value_display}
-{extra_info}
-        """
-        content_widget.update(content)
+        # 4. Content / Value
+        if node.is_container:
+            content.update(Panel(f"Container with {size_str}", title="Value"))
+        else:
+            val = node.value
+            if isinstance(val, (dict, list)):
+                formatted = json.dumps(val, indent=2)
+                syntax = Syntax(formatted, "json", theme="monokai", word_wrap=True)
+                content.update(Panel(syntax, title="Value"))
+            else:
+                content.update(Panel(str(val), title="Value"))
